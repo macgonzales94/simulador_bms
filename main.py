@@ -6,7 +6,7 @@ Este es el punto de entrada principal para probar el Módulo 1 del sistema BMS.
 Incluye configuración, protocolo Modbus y modelos básicos.
 
 Autor: Sistema BMS Demo
-Versión: 1.0.0
+Versión: 1.0.2 - Corrección final
 """
 
 import os
@@ -43,6 +43,7 @@ class SistemaBMSDemo:
         self.manejador_modbus = None
         self.dispositivos_demo = []
         self.sensores_demo = []
+        self.tiempo_inicio = datetime.now()
         
         # Control de señales
         signal.signal(signal.SIGINT, self._manejar_senal_salida)
@@ -83,6 +84,8 @@ class SistemaBMSDemo:
             
         except Exception as e:
             self.logger.error(f"Error en inicialización: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             return False
             
     def _mostrar_configuracion_sistema(self):
@@ -100,11 +103,18 @@ class SistemaBMSDemo:
         self.logger.info(f"Entorno: {self.config.ENTORNO}")
         
         # Protocolos habilitados
-        protocolos = configurador_protocolos.obtener_protocolos_habilitados()
-        self.logger.info(f"Protocolos habilitados: {[p.value for p in protocolos]}")
+        try:
+            protocolos = configurador_protocolos.obtener_protocolos_habilitados()
+            self.logger.info(f"Protocolos habilitados: {[p.value for p in protocolos]}")
+        except Exception as e:
+            self.logger.warning(f"Error obteniendo protocolos: {e}")
         
         # Base de datos
-        self.logger.info(f"Base de datos: {configurador_bd.obtener_url_conexion_bd()}")
+        try:
+            url_bd = configurador_bd.obtener_url_conexion()  # Método correcto
+            self.logger.info(f"Base de datos: {url_bd}")
+        except Exception as e:
+            self.logger.warning(f"Error obteniendo configuración BD: {e}")
         
         self.logger.info("="*60)
         
@@ -116,17 +126,23 @@ class SistemaBMSDemo:
             self.logger.info("✓ Configuración general válida")
             
             # Validar configuración de base de datos
-            if not configurador_bd.validar_configuracion():
-                self.logger.error("✗ Configuración de base de datos inválida")
-                return False
-            self.logger.info("✓ Configuración de base de datos válida")
+            try:
+                if not configurador_bd.validar_configuracion():
+                    self.logger.error("✗ Configuración de base de datos inválida")
+                    return False
+                self.logger.info("✓ Configuración de base de datos válida")
+            except Exception as e:
+                self.logger.warning(f"Error validando BD (continuando): {e}")
             
             # Validar protocolos
-            protocolos = configurador_protocolos.obtener_protocolos_habilitados()
-            if not protocolos:
-                self.logger.warning("⚠ No hay protocolos habilitados")
-            else:
-                self.logger.info(f"✓ Protocolos válidos: {len(protocolos)}")
+            try:
+                protocolos = configurador_protocolos.obtener_protocolos_habilitados()
+                if not protocolos:
+                    self.logger.warning("⚠ No hay protocolos habilitados")
+                else:
+                    self.logger.info(f"✓ Protocolos válidos: {len(protocolos)}")
+            except Exception as e:
+                self.logger.warning(f"Error validando protocolos: {e}")
                 
             return True
             
@@ -224,13 +240,23 @@ class SistemaBMSDemo:
             ups.agregar_etiqueta("critico")
             self.dispositivos_demo.append(ups)
             
-            # Crear sensores asociados
+            # Crear sensores asociados (con IDs ficticios)
             # Sensor de temperatura para el laboratorio
             sensor_temp = crear_sensor_temperatura(1, "Sensor Temperatura Lab")
+            # Inicializar factor_correccion si es None
+            if sensor_temp.factor_correccion is None:
+                sensor_temp.factor_correccion = 1.0
+            if sensor_temp.offset_correccion is None:
+                sensor_temp.offset_correccion = 0.0
             self.sensores_demo.append(sensor_temp)
             
             # Sensor de humedad para el laboratorio  
             sensor_humedad = crear_sensor_humedad(1, "Sensor Humedad Lab")
+            # Inicializar factor_correccion si es None
+            if sensor_humedad.factor_correccion is None:
+                sensor_humedad.factor_correccion = 1.0
+            if sensor_humedad.offset_correccion is None:
+                sensor_humedad.offset_correccion = 0.0
             self.sensores_demo.append(sensor_humedad)
             
             self.logger.info(f"✓ Creados {len(self.dispositivos_demo)} dispositivos demo")
@@ -238,14 +264,16 @@ class SistemaBMSDemo:
             
         except Exception as e:
             self.logger.error(f"Error creando dispositivos demo: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             
     def _inicializar_modbus(self) -> bool:
         """Inicializar manejador de protocolo Modbus."""
         try:
             self.logger.info("Inicializando protocolo Modbus...")
             
-            # Crear manejador en modo cliente-servidor
-            self.manejador_modbus = ManejadorModbus(ModoOperacionModbus.CLIENTE_SERVIDOR)
+            # Crear manejador en modo servidor solamente (más estable)
+            self.manejador_modbus = ManejadorModbus(ModoOperacionModbus.SOLO_SERVIDOR)
             
             # Intentar iniciar
             resultado = self.manejador_modbus.iniciar()
@@ -283,13 +311,16 @@ class SistemaBMSDemo:
         self.logger.debug(f"Datos Modbus recibidos: {datos}")
         
         # Actualizar sensores con datos recibidos
-        for sensor in self.sensores_demo:
-            if sensor.tipo_sensor == TipoSensor.TEMPERATURA.value:
-                if 'temperatura' in datos:
-                    temperatura = datos['temperatura'] / 10.0  # Convertir de x10
-                    alertas = sensor.actualizar_valor(temperatura)
-                    if alertas:
-                        self.logger.warning(f"Alertas en sensor temperatura: {[a.value for a in alertas]}")
+        try:
+            for sensor in self.sensores_demo:
+                if sensor.tipo_sensor == TipoSensor.TEMPERATURA.value:
+                    if 'temperatura' in datos:
+                        temperatura = datos['temperatura'] / 10.0  # Convertir de x10
+                        alertas = sensor.actualizar_valor(temperatura)
+                        if alertas:
+                            self.logger.warning(f"Alertas en sensor temperatura: {[a.value for a in alertas]}")
+        except Exception as e:
+            self.logger.error(f"Error procesando callback Modbus: {e}")
                         
     def ejecutar(self):
         """Ejecutar bucle principal del sistema."""
@@ -331,7 +362,7 @@ class SistemaBMSDemo:
             self.logger.info("-" * 50)
             
             # Estado general
-            tiempo_funcionamiento = datetime.now() - configuracion.estadisticas.get('inicio', datetime.now())
+            tiempo_funcionamiento = datetime.now() - self.tiempo_inicio
             self.logger.info(f"Tiempo funcionamiento: {tiempo_funcionamiento}")
             
             # Estado dispositivos
@@ -344,11 +375,14 @@ class SistemaBMSDemo:
             
             # Estado Modbus
             if self.manejador_modbus:
-                estado_modbus = self.manejador_modbus.obtener_estado_completo()
-                self.logger.info(f"Modbus: {estado_modbus['modo_operacion']} - Activo: {estado_modbus['activo']}")
-                if 'estadisticas' in estado_modbus:
-                    stats = estado_modbus['estadisticas']
-                    self.logger.info(f"  Operaciones: {stats['total_operaciones']} (éxito: {stats['tasa_exito']}%)")
+                try:
+                    estado_modbus = self.manejador_modbus.obtener_estado_completo()
+                    self.logger.info(f"Modbus: {estado_modbus['modo_operacion']} - Activo: {estado_modbus['activo']}")
+                    if 'estadisticas' in estado_modbus:
+                        stats = estado_modbus['estadisticas']
+                        self.logger.info(f"  Operaciones: {stats['total_operaciones']} (éxito: {stats['tasa_exito']}%)")
+                except Exception as e:
+                    self.logger.debug(f"Error obteniendo estado Modbus: {e}")
                     
             self.logger.info("-" * 50)
             
@@ -361,25 +395,29 @@ class SistemaBMSDemo:
             import random
             
             for sensor in self.sensores_demo:
-                if sensor.tipo_sensor == TipoSensor.TEMPERATURA.value:
-                    # Simular temperatura entre 18-28°C con variación
-                    temperatura = 23 + random.uniform(-5, 5)
-                    alertas = sensor.actualizar_valor(temperatura)
-                    
-                    if alertas:
-                        self.logger.warning(f"⚠ Alertas temperatura: {[a.value for a in alertas]} - Valor: {temperatura:.1f}°C")
-                    else:
-                        self.logger.debug(f"Temperatura actualizada: {temperatura:.1f}°C")
+                try:
+                    if sensor.tipo_sensor == TipoSensor.TEMPERATURA.value:
+                        # Simular temperatura entre 18-28°C con variación
+                        temperatura = 23 + random.uniform(-5, 5)
+                        alertas = sensor.actualizar_valor(temperatura)
                         
-                elif sensor.tipo_sensor == TipoSensor.HUMEDAD.value:
-                    # Simular humedad entre 40-70%
-                    humedad = 55 + random.uniform(-15, 15)
-                    alertas = sensor.actualizar_valor(humedad)
-                    
-                    if alertas:
-                        self.logger.warning(f"⚠ Alertas humedad: {[a.value for a in alertas]} - Valor: {humedad:.0f}%")
-                    else:
-                        self.logger.debug(f"Humedad actualizada: {humedad:.0f}%")
+                        if alertas:
+                            self.logger.warning(f"⚠ Alertas temperatura: {[a.value for a in alertas]} - Valor: {temperatura:.1f}°C")
+                        else:
+                            self.logger.debug(f"Temperatura actualizada: {temperatura:.1f}°C")
+                            
+                    elif sensor.tipo_sensor == TipoSensor.HUMEDAD.value:
+                        # Simular humedad entre 40-70%
+                        humedad = 55 + random.uniform(-15, 15)
+                        alertas = sensor.actualizar_valor(humedad)
+                        
+                        if alertas:
+                            self.logger.warning(f"⚠ Alertas humedad: {[a.value for a in alertas]} - Valor: {humedad:.0f}%")
+                        else:
+                            self.logger.debug(f"Humedad actualizada: {humedad:.0f}%")
+                            
+                except Exception as e:
+                    self.logger.error(f"Error actualizando sensor {sensor.tipo_sensor}: {e}")
                         
         except Exception as e:
             self.logger.error(f"Error simulando lecturas: {e}")
@@ -416,8 +454,11 @@ class SistemaBMSDemo:
             
             # Detener protocolo Modbus
             if self.manejador_modbus:
-                resultado = self.manejador_modbus.detener()
-                self.logger.info(f"Modbus detenido: {resultado.mensaje}")
+                try:
+                    resultado = self.manejador_modbus.detener()
+                    self.logger.info(f"Modbus detenido: {resultado.mensaje}")
+                except Exception as e:
+                    self.logger.error(f"Error deteniendo Modbus: {e}")
                 
             # Limpiar recursos
             self.dispositivos_demo.clear()

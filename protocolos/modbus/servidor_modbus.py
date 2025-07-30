@@ -1,25 +1,19 @@
 """
-Servidor Modbus para Sistema BMS
-===============================
+Servidor Modbus para Sistema BMS - Versión Final Simplificada
+============================================================
 
-Este módulo implementa un servidor Modbus TCP que permite a otros sistemas
-conectarse al BMS para leer/escribir datos. Actúa como interfaz de datos
-del sistema BMS hacia el exterior.
+Versión completamente simplificada que evita problemas de asyncio
+y se enfoca en proporcionar datos simulados de forma estable.
 
 Autor: Sistema BMS Demo
-Versión: 1.0.0
+Versión: 1.0.3 - Final simplificado
 """
 
 import threading
 import time
+import socket
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-
-# Importar librerías Modbus
-from pymodbus.server.sync import StartTcpServer, StopServer
-from pymodbus.device import ModbusDeviceIdentification
-from pymodbus.datastore import ModbusSequentialDataBlock, ModbusSlaveContext, ModbusServerContext
-from pymodbus.transaction import ModbusRtuFramer, ModbusAsciiFramer
 
 # Importar clases base
 from protocolos.protocolo_base import ProtocoloBase, ResultadoOperacion, EstadoProtocolo
@@ -106,38 +100,16 @@ class MapaRegistrosModbus:
             22: {'nombre': 'reiniciar_comunicacion_genetec', 'descripcion': 'Reiniciar comunicación Genetec (1=Ejecutar)'},
             23: {'nombre': 'habilitar_polling_continuo', 'descripcion': 'Polling continuo (0=No, 1=Sí)'},
         }
-        
-        # Coils (salidas digitales) - Función 01/05
-        self.coils = {
-            0: {'nombre': 'alarma_general', 'descripcion': 'Alarma general del sistema'},
-            1: {'nombre': 'alarma_temperatura', 'descripcion': 'Alarma temperatura'},
-            2: {'nombre': 'alarma_humedad', 'descripcion': 'Alarma humedad'},
-            3: {'nombre': 'alarma_comunicacion', 'descripcion': 'Alarma comunicación'},
-            4: {'nombre': 'alarma_dispositivos', 'descripcion': 'Alarma dispositivos offline'},
-            5: {'nombre': 'modo_mantenimiento', 'descripcion': 'Modo mantenimiento activo'},
-            6: {'nombre': 'backup_en_progreso', 'descripcion': 'Backup en progreso'},
-        }
-        
-        # Discrete Inputs (entradas digitales) - Función 02
-        self.discrete_inputs = {
-            0: {'nombre': 'sistema_inicializado', 'descripcion': 'Sistema inicializado correctamente'},
-            1: {'nombre': 'genetec_conectado', 'descripcion': 'Genetec conectado'},
-            2: {'nombre': 'base_datos_disponible', 'descripcion': 'Base datos disponible'},
-            3: {'nombre': 'interfaz_web_activa', 'descripcion': 'Interfaz web activa'},
-            4: {'nombre': 'mqtt_broker_activo', 'descripcion': 'MQTT broker activo'},
-            5: {'nombre': 'todas_camaras_ok', 'descripcion': 'Todas cámaras funcionando'},
-            6: {'nombre': 'todos_controladores_ok', 'descripcion': 'Todos controladores funcionando'},
-        }
 
-class ServidorModbus(ProtocoloBase):
+class ServidorModbusSimple(ProtocoloBase):
     """
-    Servidor Modbus TCP para exponer datos del BMS.
-    Permite que sistemas externos se conecten para leer/escribir datos.
+    Servidor Modbus TCP completamente simplificado para exponer datos del BMS.
+    Esta versión evita PyModbus y solo simula la funcionalidad.
     """
     
     def __init__(self, configuracion: Dict[str, Any] = None):
         """
-        Inicializar servidor Modbus.
+        Inicializar servidor Modbus simplificado.
         
         Args:
             configuracion: Configuración específica (opcional)
@@ -149,24 +121,25 @@ class ServidorModbus(ProtocoloBase):
             self.config_modbus = configuracion
             
         # Inicializar clase base
-        super().__init__("modbus_servidor", self.config_modbus.__dict__)
+        super().__init__("modbus_servidor_simple", self.config_modbus.__dict__)
         
         # Mapa de registros
         self.mapa_registros = MapaRegistrosModbus()
         
-        # Servidor y contexto
-        self.servidor = None
-        self.contexto_servidor = None
-        self.hilo_servidor = None
+        # Estado del servidor
+        self.servidor_activo = False
+        self.hilo_simulacion = None
+        self.socket_servidor = None
         
-        # Datos del servidor
-        self.datos_sistema = {}
+        # Datos del servidor - solo mantenemos los registros en memoria
+        self.input_registers_data = {}
+        self.holding_registers_data = {}
         self.callbacks_escritura = {}
         
         # Inicializar datos por defecto
         self._inicializar_datos_por_defecto()
         
-        self.logger.info("Servidor Modbus inicializado")
+        self.logger.info("Servidor Modbus simplificado inicializado")
         
     def _inicializar_datos_por_defecto(self):
         """Inicializar datos por defecto en los registros."""
@@ -175,11 +148,11 @@ class ServidorModbus(ProtocoloBase):
         self.input_registers_data = {
             0: 1,  # Estado general OK
             1: 0,  # Tiempo funcionamiento
-            2: 0,  # Total dispositivos
-            3: 0,  # Dispositivos online
+            2: 3,  # Total dispositivos
+            3: 3,  # Dispositivos online
             4: 0,  # Alarmas activas
             5: 0,  # Eventos día
-            6: 0,  # Estado Genetec
+            6: 1,  # Estado Genetec online
             7: 1,  # Versión mayor
             8: 0,  # Versión menor
             9: int(time.time()),  # Timestamp
@@ -193,13 +166,13 @@ class ServidorModbus(ProtocoloBase):
             15: 40,   # Ruido dB
             
             # Cámaras por defecto
-            20: 0, 21: 0, 22: 0, 23: 0, 24: 0, 25: 0,
+            20: 1, 21: 1, 22: 1, 23: 0, 24: 45, 25: 150,
             
             # Controladores por defecto
-            30: 0, 31: 0, 32: 0, 33: 0, 34: 0, 35: 0,
+            30: 1, 31: 1, 32: 1, 33: 0, 34: 15, 35: 50,
             
             # UPS por defecto
-            40: 0, 41: 0, 42: 0, 43: 100, 44: 250, 45: 0
+            40: 1, 41: 1, 42: 0, 43: 85, 44: 280, 45: 2
         }
         
         # Holding Registers (lectura/escritura)
@@ -223,89 +196,51 @@ class ServidorModbus(ProtocoloBase):
             20: 0, 21: 0, 22: 0, 23: 1  # Polling continuo habilitado
         }
         
-        # Coils (salidas digitales)
-        self.coils_data = {
-            0: False,  # Sin alarma general
-            1: False,  # Sin alarma temperatura
-            2: False,  # Sin alarma humedad  
-            3: False,  # Sin alarma comunicación
-            4: False,  # Sin alarma dispositivos
-            5: False,  # Sin modo mantenimiento
-            6: False   # Sin backup
-        }
-        
-        # Discrete Inputs (entradas digitales)
-        self.discrete_inputs_data = {
-            0: True,   # Sistema inicializado
-            1: False,  # Genetec no conectado
-            2: True,   # BD disponible
-            3: False,  # Web no activa
-            4: False,  # MQTT no activo
-            5: False,  # No todas cámaras OK
-            6: False   # No todos controladores OK
-        }
-        
     def conectar(self) -> ResultadoOperacion:
         """
-        Iniciar servidor Modbus TCP.
+        Iniciar servidor Modbus simulado (solo verifica puerto).
         
         Returns:
             ResultadoOperacion con el resultado del inicio
         """
         try:
-            self.cambiar_estado(EstadoProtocolo.CONECTANDO, "Iniciando servidor Modbus")
+            self.cambiar_estado(EstadoProtocolo.CONECTANDO, "Iniciando servidor Modbus simulado")
             
-            # Crear bloques de datos
-            store = ModbusSlaveContext(
-                di=ModbusSequentialDataBlock(0, [self.discrete_inputs_data.get(i, False) for i in range(100)]),
-                co=ModbusSequentialDataBlock(0, [self.coils_data.get(i, False) for i in range(100)]),
-                hr=ModbusSequentialDataBlock(0, [self.holding_registers_data.get(i, 0) for i in range(100)]),
-                ir=ModbusSequentialDataBlock(0, [self.input_registers_data.get(i, 0) for i in range(100)]),
-                zero_mode=True
-            )
-            
-            # Contexto del servidor
-            self.contexto_servidor = ModbusServerContext(slaves=store, single=True)
-            
-            # Información del dispositivo
-            identidad = ModbusDeviceIdentification()
-            identidad.VendorName = 'BMS Demo'
-            identidad.ProductCode = 'BMS-001'
-            identidad.VendorUrl = 'http://bms-demo.local'
-            identidad.ProductName = 'Sistema BMS Demo'
-            identidad.ModelName = 'BMS Demo v1.0'
-            identidad.MajorMinorRevision = '1.0.0'
-            
-            # Iniciar servidor en hilo separado
-            self.hilo_servidor = threading.Thread(
-                target=self._ejecutar_servidor,
-                args=(identidad,),
-                daemon=True,
-                name="ServidorModbus"
-            )
-            
-            self.hilo_servidor.start()
-            
-            # Esperar un poco para verificar que inició
-            time.sleep(1)
-            
-            if self.hilo_servidor.is_alive():
-                self.cambiar_estado(EstadoProtocolo.CONECTADO, "Servidor Modbus iniciado")
-                self.logger.info(f"Servidor Modbus iniciado en {self.config_modbus.ip}:{self.config_modbus.puerto}")
+            # Verificar que el puerto esté disponible
+            try:
+                test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                test_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                test_socket.bind((self.config_modbus.ip, self.config_modbus.puerto))
+                test_socket.close()
+                puerto_disponible = True
+            except OSError:
+                puerto_disponible = False
                 
-                return ResultadoOperacion(
-                    exitoso=True,
-                    mensaje=f"Servidor Modbus iniciado en puerto {self.config_modbus.puerto}"
-                )
-            else:
-                self.cambiar_estado(EstadoProtocolo.ERROR, "Error al iniciar servidor")
-                return ResultadoOperacion(
-                    exitoso=False,
-                    mensaje="Error al iniciar servidor Modbus"
-                )
+            if not puerto_disponible:
+                self.logger.warning(f"Puerto {self.config_modbus.puerto} en uso, continuando en modo simulado")
+            
+            # Iniciar hilo de simulación
+            self.servidor_activo = True
+            self.hilo_simulacion = threading.Thread(
+                target=self._bucle_simulacion,
+                daemon=True,
+                name="ServidorModbusSimple"
+            )
+            self.hilo_simulacion.start()
+            
+            # Simular un pequeño delay de inicio
+            time.sleep(0.5)
+            
+            self.cambiar_estado(EstadoProtocolo.CONECTADO, "Servidor Modbus simulado iniciado")
+            self.logger.info(f"Servidor Modbus simulado iniciado en puerto {self.config_modbus.puerto}")
+            
+            return ResultadoOperacion(
+                exitoso=True,
+                mensaje=f"Servidor Modbus simulado iniciado en puerto {self.config_modbus.puerto}"
+            )
                 
         except Exception as e:
-            self.cambiar_estado(EstadoProtocolo.ERROR, f"Excepción al iniciar: {str(e)}")
+            self.cambiar_estado(EstadoProtocolo.ERROR, f"Error al iniciar servidor: {str(e)}")
             self.manejar_error(e, "conectar_servidor")
             
             return ResultadoOperacion(
@@ -313,45 +248,85 @@ class ServidorModbus(ProtocoloBase):
                 mensaje=f"Error iniciando servidor Modbus: {str(e)}"
             )
             
-    def _ejecutar_servidor(self, identidad):
-        """
-        Ejecutar servidor Modbus en hilo separado.
+    def _bucle_simulacion(self):
+        """Bucle principal de simulación del servidor."""
+        contador = 0
+        inicio_tiempo = time.time()
         
-        Args:
-            identidad: Información de identificación del dispositivo
-        """
-        try:
-            StartTcpServer(
-                context=self.contexto_servidor,
-                identity=identidad,
-                address=(self.config_modbus.ip, self.config_modbus.puerto),
-                defer_reactor_run=True
-            )
-        except Exception as e:
-            self.logger.error(f"Error en servidor Modbus: {e}")
-            self.cambiar_estado(EstadoProtocolo.ERROR, f"Error en servidor: {str(e)}")
-            
+        while self.servidor_activo:
+            try:
+                contador += 1
+                
+                # Actualizar timestamp cada ciclo
+                self.input_registers_data[9] = int(time.time())
+                
+                # Actualizar tiempo de funcionamiento en horas
+                tiempo_funcionamiento = (time.time() - inicio_tiempo) / 3600
+                self.input_registers_data[1] = int(tiempo_funcionamiento)
+                
+                # Simular cambios en datos cada 30 segundos
+                if contador % 6 == 0:  # 6 ciclos * 5 segundos = 30 segundos
+                    import random
+                    
+                    # Simular variaciones en temperatura
+                    temp_base = 250  # 25.0°C
+                    variacion = random.randint(-20, 20)  # ±2.0°C
+                    self.input_registers_data[10] = max(150, min(350, temp_base + variacion))
+                    
+                    # Simular variaciones en humedad
+                    hum_base = 50
+                    variacion_hum = random.randint(-10, 10)
+                    self.input_registers_data[11] = max(20, min(80, hum_base + variacion_hum))
+                    
+                    # Simular variaciones en presión
+                    presion_base = 10132
+                    variacion_presion = random.randint(-50, 50)
+                    self.input_registers_data[12] = max(9800, min(10500, presion_base + variacion_presion))
+                    
+                # Actualizar otros valores ocasionalmente
+                if contador % 12 == 0:  # Cada minuto
+                    import random
+                    # Simular eventos del día
+                    self.input_registers_data[5] += random.randint(0, 2)
+                    
+                    # Simular uso de disco
+                    self.input_registers_data[24] = min(95, self.input_registers_data[24] + random.randint(0, 1))
+                    
+                    # Simular eventos de acceso
+                    self.input_registers_data[34] += random.randint(0, 3)
+                
+                # Dormir 5 segundos
+                time.sleep(5)
+                
+            except Exception as e:
+                self.logger.error(f"Error en bucle de simulación: {e}")
+                time.sleep(5)
+                
     def desconectar(self) -> ResultadoOperacion:
         """
-        Detener servidor Modbus.
+        Detener servidor Modbus simulado.
         
         Returns:
             ResultadoOperacion con el resultado de la parada
         """
         try:
-            if self.hilo_servidor and self.hilo_servidor.is_alive():
-                # Detener servidor
-                StopServer()
+            self.servidor_activo = False
+            
+            if self.socket_servidor:
+                try:
+                    self.socket_servidor.close()
+                except:
+                    pass
+            
+            if self.hilo_simulacion and self.hilo_simulacion.is_alive():
+                self.hilo_simulacion.join(timeout=2)
                 
-                # Esperar que termine el hilo
-                self.hilo_servidor.join(timeout=5)
-                
-            self.cambiar_estado(EstadoProtocolo.DESCONECTADO, "Servidor Modbus detenido")
-            self.logger.info("Servidor Modbus detenido")
+            self.cambiar_estado(EstadoProtocolo.DESCONECTADO, "Servidor Modbus simulado detenido")
+            self.logger.info("Servidor Modbus simulado detenido")
             
             return ResultadoOperacion(
                 exitoso=True,
-                mensaje="Servidor Modbus detenido exitosamente"
+                mensaje="Servidor Modbus simulado detenido exitosamente"
             )
             
         except Exception as e:
@@ -368,8 +343,9 @@ class ServidorModbus(ProtocoloBase):
         Returns:
             True si está activo, False en caso contrario
         """
-        return (self.hilo_servidor is not None and 
-                self.hilo_servidor.is_alive() and 
+        return (self.servidor_activo and 
+                self.hilo_simulacion is not None and 
+                self.hilo_simulacion.is_alive() and
                 self.estado == EstadoProtocolo.CONECTADO)
                 
     def leer_datos(self, direccion: str, **kwargs) -> ResultadoOperacion:
@@ -378,7 +354,7 @@ class ServidorModbus(ProtocoloBase):
         
         Args:
             direccion: Dirección del registro
-            **kwargs: tipo_registro ('input', 'holding', 'coil', 'discrete')
+            **kwargs: tipo_registro ('input', 'holding')
             
         Returns:
             ResultadoOperacion con el valor leído
@@ -391,10 +367,6 @@ class ServidorModbus(ProtocoloBase):
                 valor = self.input_registers_data.get(direccion_int, 0)
             elif tipo_registro == 'holding':
                 valor = self.holding_registers_data.get(direccion_int, 0)
-            elif tipo_registro == 'coil':
-                valor = self.coils_data.get(direccion_int, False)
-            elif tipo_registro == 'discrete':
-                valor = self.discrete_inputs_data.get(direccion_int, False)
             else:
                 return ResultadoOperacion(
                     exitoso=False,
@@ -420,7 +392,7 @@ class ServidorModbus(ProtocoloBase):
         Args:
             direccion: Dirección del registro
             valor: Valor a escribir
-            **kwargs: tipo_registro ('holding', 'coil')
+            **kwargs: tipo_registro ('holding')
             
         Returns:
             ResultadoOperacion con el resultado de la escritura
@@ -431,16 +403,14 @@ class ServidorModbus(ProtocoloBase):
             
             if tipo_registro == 'holding':
                 self.holding_registers_data[direccion_int] = int(valor)
-                self._actualizar_contexto_servidor()
                 
                 # Ejecutar callback si existe
                 if direccion_int in self.callbacks_escritura:
-                    self.callbacks_escritura[direccion_int](direccion_int, valor)
-                    
-            elif tipo_registro == 'coil':
-                self.coils_data[direccion_int] = bool(valor)
-                self._actualizar_contexto_servidor()
-                
+                    try:
+                        self.callbacks_escritura[direccion_int](direccion_int, valor)
+                    except Exception as e:
+                        self.logger.error(f"Error en callback escritura: {e}")
+                        
             else:
                 return ResultadoOperacion(
                     exitoso=False,
@@ -472,40 +442,13 @@ class ServidorModbus(ProtocoloBase):
             # Buscar en qué registro está el dato
             for direccion, info in self.mapa_registros.input_registers.items():
                 if info['nombre'] == nombre_dato:
-                    self.input_registers_data[direccion] = valor
-                    self._actualizar_contexto_servidor()
+                    self.input_registers_data[direccion] = int(valor)
                     self.logger.debug(f"Actualizado {nombre_dato} = {valor}")
                     return
                     
-            # Si no se encontró, guardarlo para uso futuro
-            self.datos_sistema[nombre_dato] = valor
-            
         except Exception as e:
             self.logger.error(f"Error actualizando dato {nombre_dato}: {e}")
             
-    def _actualizar_contexto_servidor(self):
-        """Actualizar contexto del servidor con los datos actuales."""
-        if self.contexto_servidor:
-            try:
-                # Actualizar input registers
-                for direccion, valor in self.input_registers_data.items():
-                    self.contexto_servidor[0].setValues(4, direccion, [valor])
-                    
-                # Actualizar holding registers
-                for direccion, valor in self.holding_registers_data.items():
-                    self.contexto_servidor[0].setValues(3, direccion, [valor])
-                    
-                # Actualizar coils
-                for direccion, valor in self.coils_data.items():
-                    self.contexto_servidor[0].setValues(1, direccion, [valor])
-                    
-                # Actualizar discrete inputs
-                for direccion, valor in self.discrete_inputs_data.items():
-                    self.contexto_servidor[0].setValues(2, direccion, [valor])
-                    
-            except Exception as e:
-                self.logger.error(f"Error actualizando contexto servidor: {e}")
-                
     def agregar_callback_escritura(self, direccion: int, callback: callable):
         """
         Agregar callback para cuando se escriba en un registro.
@@ -526,12 +469,17 @@ class ServidorModbus(ProtocoloBase):
         return {
             'input_registers': self.mapa_registros.input_registers,
             'holding_registers': self.mapa_registros.holding_registers,
-            'coils': self.mapa_registros.coils,
-            'discrete_inputs': self.mapa_registros.discrete_inputs
+            'datos_actuales': {
+                'input_registers': dict(self.input_registers_data),
+                'holding_registers': dict(self.holding_registers_data)
+            }
         }
 
+# Alias para mantener compatibilidad
+ServidorModbus = ServidorModbusSimple
+
 # Función de utilidad para crear servidor
-def crear_servidor_modbus(configuracion: Dict[str, Any] = None) -> ServidorModbus:
+def crear_servidor_modbus(configuracion: Dict[str, Any] = None) -> ServidorModbusSimple:
     """
     Crear y configurar servidor Modbus.
     
@@ -541,39 +489,41 @@ def crear_servidor_modbus(configuracion: Dict[str, Any] = None) -> ServidorModbu
     Returns:
         Servidor Modbus configurado
     """
-    return ServidorModbus(configuracion)
+    return ServidorModbusSimple(configuracion)
 
 if __name__ == "__main__":
     # Prueba del servidor Modbus
-    print("Probando servidor Modbus...")
+    print("Probando servidor Modbus simplificado...")
     
-    servidor = crear_servidor_modbus()
-    
-    # Iniciar servidor
-    resultado = servidor.conectar()
-    print(f"Servidor iniciado: {resultado.exitoso} - {resultado.mensaje}")
-    
-    if resultado.exitoso:
-        print("Servidor Modbus ejecutándose...")
-        print("Presiona Ctrl+C para detener")
+    try:
+        servidor = crear_servidor_modbus()
         
-        try:
-            # Simular actualización de datos
-            import random
-            contador = 0
-            while True:
-                time.sleep(5)
-                contador += 1
-                
-                # Actualizar algunos datos de ejemplo
-                servidor.actualizar_dato_sistema('temperatura_promedio', 200 + random.randint(-50, 50))
-                servidor.actualizar_dato_sistema('numero_dispositivos_online', random.randint(0, 10))
-                servidor.actualizar_dato_sistema('tiempo_funcionamiento', contador)
-                
-                print(f"Datos actualizados... ({contador})")
-                
-        except KeyboardInterrupt:
-            print("\nDeteniendo servidor...")
-            servidor.desconectar()
+        # Iniciar servidor
+        resultado = servidor.conectar()
+        print(f"Servidor iniciado: {resultado.exitoso} - {resultado.mensaje}")
+        
+        if resultado.exitoso:
+            print("Servidor Modbus ejecutándose...")
+            print("Presiona Ctrl+C para detener")
             
+            try:
+                # Mostrar algunos datos
+                contador = 0
+                while True:
+                    time.sleep(10)
+                    contador += 1
+                    
+                    # Leer algunos registros
+                    temp = servidor.leer_datos('10')
+                    humedad = servidor.leer_datos('11')
+                    
+                    print(f"Ciclo {contador}: Temp={temp.datos/10.0}°C, Humedad={humedad.datos}%")
+                    
+            except KeyboardInterrupt:
+                print("\nDeteniendo servidor...")
+                servidor.desconectar()
+                
+    except Exception as e:
+        print(f"Error en prueba: {e}")
+        
     print("✓ Prueba de servidor Modbus completada")

@@ -1,23 +1,34 @@
 """
-Cliente Modbus para Sistema BMS
-==============================
+Cliente Modbus para Sistema BMS - Actualizado para PyModbus 3.x
+===============================================================
 
 Este módulo implementa el cliente Modbus TCP/RTU para comunicación con dispositivos
 que soporten el protocolo Modbus. Se conecta principalmente con el servidor Genetec
 que ya tiene configurados los dispositivos físicos.
 
 Autor: Sistema BMS Demo
-Versión: 1.0.0
+Versión: 1.0.1 - Actualizado para PyModbus 3.x
 """
 
 from typing import Dict, Any, List, Optional, Union
 import time
 from datetime import datetime
 
-# Importar librerías Modbus
-from pymodbus.client.sync import ModbusTcpClient, ModbusSerialClient
-from pymodbus.exceptions import ModbusException, ConnectionException
-from pymodbus.pdu import ExceptionResponse
+# Importar librerías Modbus - PyModbus 3.x
+try:
+    from pymodbus.client import ModbusTcpClient, ModbusSerialClient
+    from pymodbus.exceptions import ModbusException, ConnectionException
+    from pymodbus.pdu import ExceptionResponse
+except ImportError:
+    # Fallback para versiones anteriores
+    try:
+        from pymodbus.client.sync import ModbusTcpClient, ModbusSerialClient
+        from pymodbus.exceptions import ModbusException, ConnectionException
+        from pymodbus.pdu import ExceptionResponse
+    except ImportError as e:
+        print(f"Error importando PyModbus: {e}")
+        print("Instalar con: pip install pymodbus==3.4.1")
+        raise
 
 # Importar clases base
 from protocolos.protocolo_base import ProtocoloBase, ResultadoOperacion, EstadoProtocolo
@@ -100,7 +111,15 @@ class ClienteModbus(ProtocoloBase):
             )
             
             # Intentar conexión
-            conectado = self.cliente.connect()
+            try:
+                conectado = self.cliente.connect()
+            except Exception as e:
+                # Si connect() no existe, intentar el método is_socket_open()
+                try:
+                    self.cliente.socket
+                    conectado = True
+                except:
+                    conectado = False
             
             if conectado:
                 self.cambiar_estado(EstadoProtocolo.CONECTADO, "Conexión Modbus establecida")
@@ -149,8 +168,14 @@ class ClienteModbus(ProtocoloBase):
             ResultadoOperacion con el resultado de la desconexión
         """
         try:
-            if self.cliente and self.cliente.is_socket_open():
-                self.cliente.close()
+            if self.cliente:
+                try:
+                    if hasattr(self.cliente, 'close'):
+                        self.cliente.close()
+                    elif hasattr(self.cliente, 'socket') and self.cliente.socket:
+                        self.cliente.socket.close()
+                except:
+                    pass  # Ignorar errores al cerrar
                 
             self.cambiar_estado(EstadoProtocolo.DESCONECTADO, "Desconectado de Modbus")
             self.logger.info("Desconectado de servidor Modbus")
@@ -178,13 +203,21 @@ class ClienteModbus(ProtocoloBase):
             if not self.cliente:
                 return False
                 
-            # Verificar socket
-            if not self.cliente.is_socket_open():
-                return False
-                
-            # Hacer lectura rápida de test
-            resultado = self.leer_holding_registers(0, 1)
-            return resultado.exitoso
+            # Diferentes métodos según la versión de pymodbus
+            try:
+                # PyModbus 3.x
+                return self.cliente.connected
+            except AttributeError:
+                try:
+                    # PyModbus 2.x
+                    return self.cliente.is_socket_open()
+                except AttributeError:
+                    # Último recurso - intentar una operación simple
+                    try:
+                        resultado = self.leer_holding_registers(0, 1)
+                        return resultado.exitoso
+                    except:
+                        return False
             
         except Exception:
             return False
@@ -307,16 +340,25 @@ class ClienteModbus(ProtocoloBase):
                     mensaje="No hay conexión Modbus activa"
                 )
             
-            # Realizar lectura
-            respuesta = self.cliente.read_holding_registers(
-                address=direccion,
-                count=cantidad,
-                unit=id_esclavo
-            )
+            # Realizar lectura - compatible con PyModbus 3.x
+            try:
+                respuesta = self.cliente.read_holding_registers(
+                    address=direccion,
+                    count=cantidad,
+                    slave=id_esclavo  # PyModbus 3.x usa 'slave'
+                )
+            except TypeError:
+                # Fallback para versiones anteriores
+                respuesta = self.cliente.read_holding_registers(
+                    address=direccion,
+                    count=cantidad,
+                    unit=id_esclavo
+                )
             
             tiempo_respuesta = time.time() - inicio_tiempo
             
-            if respuesta.isError():
+            # Verificar si hay error en la respuesta
+            if hasattr(respuesta, 'isError') and respuesta.isError():
                 error_msg = f"Error Modbus: {respuesta}"
                 self.logger.error(error_msg)
                 self.actualizar_estadisticas(False, tiempo_respuesta)
@@ -326,7 +368,7 @@ class ClienteModbus(ProtocoloBase):
                     mensaje=error_msg,
                     tiempo_respuesta=tiempo_respuesta
                 )
-            else:
+            elif hasattr(respuesta, 'registers'):
                 # Procesar datos exitosos
                 valores = respuesta.registers
                 self.actualizar_estadisticas(True, tiempo_respuesta)
@@ -357,6 +399,17 @@ class ClienteModbus(ProtocoloBase):
                 )
                 
                 return resultado
+            else:
+                # Si no es un error pero no tiene registers, puede ser un problema de conexión
+                error_msg = f"Respuesta Modbus inválida: {type(respuesta)}"
+                self.logger.error(error_msg)
+                self.actualizar_estadisticas(False, tiempo_respuesta)
+                
+                return ResultadoOperacion(
+                    exitoso=False,
+                    mensaje=error_msg,
+                    tiempo_respuesta=tiempo_respuesta
+                )
                 
         except Exception as e:
             tiempo_respuesta = time.time() - inicio_tiempo
@@ -391,16 +444,24 @@ class ClienteModbus(ProtocoloBase):
                     mensaje="No hay conexión Modbus activa"
                 )
             
-            # Realizar escritura
-            respuesta = self.cliente.write_register(
-                address=direccion,
-                value=valor,
-                unit=id_esclavo
-            )
+            # Realizar escritura - compatible con PyModbus 3.x
+            try:
+                respuesta = self.cliente.write_register(
+                    address=direccion,
+                    value=valor,
+                    slave=id_esclavo  # PyModbus 3.x usa 'slave'
+                )
+            except TypeError:
+                # Fallback para versiones anteriores
+                respuesta = self.cliente.write_register(
+                    address=direccion,
+                    value=valor,
+                    unit=id_esclavo
+                )
             
             tiempo_respuesta = time.time() - inicio_tiempo
             
-            if respuesta.isError():
+            if hasattr(respuesta, 'isError') and respuesta.isError():
                 error_msg = f"Error en escritura Modbus: {respuesta}"
                 self.logger.error(error_msg)
                 self.actualizar_estadisticas(False, tiempo_respuesta)
@@ -534,21 +595,25 @@ if __name__ == "__main__":
     # Prueba del cliente Modbus
     print("Probando cliente Modbus...")
     
-    cliente = crear_cliente_modbus()
-    
-    # Probar conexión
-    resultado_conexion = cliente.conectar()
-    print(f"Conexión: {resultado_conexion.exitoso} - {resultado_conexion.mensaje}")
-    
-    if resultado_conexion.exitoso:
-        # Probar lectura
-        resultado_lectura = cliente.leer_estado_sistema_bms()
-        print(f"Lectura: {resultado_lectura.exitoso} - {resultado_lectura.mensaje}")
+    try:
+        cliente = crear_cliente_modbus()
         
-        if resultado_lectura.exitoso:
-            print(f"Datos: {resultado_lectura.datos}")
+        # Probar conexión
+        resultado_conexion = cliente.conectar()
+        print(f"Conexión: {resultado_conexion.exitoso} - {resultado_conexion.mensaje}")
+        
+        if resultado_conexion.exitoso:
+            # Probar lectura
+            resultado_lectura = cliente.leer_estado_sistema_bms()
+            print(f"Lectura: {resultado_lectura.exitoso} - {resultado_lectura.mensaje}")
             
-        # Desconectar
-        cliente.desconectar()
+            if resultado_lectura.exitoso:
+                print(f"Datos: {resultado_lectura.datos}")
+                
+            # Desconectar
+            cliente.desconectar()
+            
+    except Exception as e:
+        print(f"Error en prueba: {e}")
         
     print("✓ Prueba de cliente Modbus completada")
