@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Sensores - BMS Demo{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h2><i class="fas fa-thermometer-half"></i> Monitoreo de Sensores</h2>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Valores en Tiempo Real</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="grafico-sensores" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Sensores Actuales</h5>
+            </div>
+            <div class="card-body" id="lista-sensores">
+                Cargando...
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Gráfico simple
+const ctx = document.getElementById('grafico-sensores').getContext('2d');
+const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [{
+            label: 'Temperatura',
+            data: [],
+            borderColor: 'rgb(255, 99, 132)',
+            tension: 0.1
+        }, {
+            label: 'Humedad',
+            data: [],
+            borderColor: 'rgb(54, 162, 235)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+function refreshData() {
+    fetch('/api/sensores')
+        .then(response => response.json())
+        .then(data => {
+            // Actualizar lista
+            const lista = document.getElementById('lista-sensores');
+            lista.innerHTML = '';
+            
+            data.forEach(sensor => {
+                const div = document.createElement('div');
+                div.className = 'mb-2 p-2 bg-light rounded';
+                div.innerHTML = `
+                    <strong>${sensor.tipo}</strong><br>
+                    <span class="h5 text-primary">${sensor.valor || 'N/A'} ${sensor.unidad}</span>
+                `;
+                lista.appendChild(div);
+                
+                // Agregar al gráfico (simple)
+                if (sensor.tipo === 'temperatura' && sensor.valor) {
+                    const now = new Date().toLocaleTimeString();
+                    chart.data.labels.push(now);
+                    chart.data.datasets[0].data.push(sensor.valor);
+                    
+                    // Mantener solo últimos 10 puntos
+                    if (chart.data.labels.length > 10) {
+                        chart.data.labels.shift();
+                        chart.data.datasets[0].data.shift();
+                    }
+                    chart.update();
+                }
+            });
+        });
+}
+
+refreshData();
+</script>
+{% endblock %}

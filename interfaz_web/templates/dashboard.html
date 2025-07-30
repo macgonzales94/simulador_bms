@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - BMS Demo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-building"></i> BMS Demo
+            </a>
+            <div class="navbar-nav">
+                <a class="nav-link active" href="/">Dashboard</a>
+                <a class="nav-link" href="/dispositivos">Dispositivos</a>
+                <a class="nav-link" href="/sensores">Sensores</a>
+                <a class="nav-link" href="/modbus">Modbus</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-12">
+                <h2><i class="fas fa-tachometer-alt"></i> Dashboard BMS</h2>
+                <small class="text-muted">Actualización automática cada 5 segundos</small>
+            </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="row mt-3">
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h5><i class="fas fa-wifi"></i> Dispositivos Online</h5>
+                        <h3 id="dispositivos-online">Cargando...</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h5><i class="fas fa-thermometer-half"></i> Sensores Activos</h5>
+                        <h3 id="sensores-activos">Cargando...</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <h5><i class="fas fa-plug"></i> Estado Modbus</h5>
+                        <h3 id="modbus-estado">Cargando...</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h5><i class="fas fa-clock"></i> Tiempo Activo</h5>
+                        <h3 id="tiempo-activo">Cargando...</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de dispositivos -->
+        <div class="row mt-4">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-list"></i> Dispositivos Recientes</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Tipo</th>
+                                    <th>IP</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-dispositivos">
+                                <tr><td colspan="4" class="text-center">Cargando dispositivos...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Panel de sensores -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-chart-line"></i> Sensores en Tiempo Real</h5>
+                    </div>
+                    <div class="card-body" id="panel-sensores">
+                        <div class="text-center">Cargando sensores...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de debug -->
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-bug"></i> Debug - Respuestas API</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <h6>API Dispositivos:</h6>
+                                <pre id="debug-dispositivos" class="bg-light p-2" style="font-size: 0.8em;">No data</pre>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>API Sensores:</h6>
+                                <pre id="debug-sensores" class="bg-light p-2" style="font-size: 0.8em;">No data</pre>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>API Estado:</h6>
+                                <pre id="debug-estado" class="bg-light p-2" style="font-size: 0.8em;">No data</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function refreshData() {
+            console.log('Actualizando datos...');
+            
+            // Cargar dispositivos
+            fetch('/api/dispositivos')
+                .then(response => {
+                    console.log('Response dispositivos:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Datos dispositivos:', data);
+                    
+                    // Debug
+                    document.getElementById('debug-dispositivos').textContent = JSON.stringify(data, null, 2);
+                    
+                    const tbody = document.getElementById('tabla-dispositivos');
+                    tbody.innerHTML = '';
+                    
+                    let online = 0;
+                    let total = data.length;
+                    
+                    if (data.length === 0) {
+                        const row = tbody.insertRow();
+                        row.innerHTML = '<td colspan="4" class="text-center text-muted">No hay dispositivos configurados</td>';
+                    } else {
+                        data.forEach(dispositivo => {
+                            if (dispositivo.estado === 'online') online++;
+                            
+                            const row = tbody.insertRow();
+                            row.innerHTML = `
+                                <td>${dispositivo.nombre || 'Sin nombre'}</td>
+                                <td><span class="badge bg-secondary">${dispositivo.tipo || 'N/A'}</span></td>
+                                <td>${dispositivo.ip || 'N/A'}</td>
+                                <td><span class="badge bg-${dispositivo.estado === 'online' ? 'success' : 'danger'}">${dispositivo.estado || 'desconocido'}</span></td>
+                            `;
+                        });
+                    }
+                    
+                    document.getElementById('dispositivos-online').textContent = `${online}/${total}`;
+                })
+                .catch(error => {
+                    console.error('Error cargando dispositivos:', error);
+                    document.getElementById('debug-dispositivos').textContent = 'Error: ' + error.message;
+                    document.getElementById('dispositivos-online').textContent = 'Error';
+                });
+            
+            // Cargar sensores
+            fetch('/api/sensores')
+                .then(response => {
+                    console.log('Response sensores:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Datos sensores:', data);
+                    
+                    // Debug
+                    document.getElementById('debug-sensores').textContent = JSON.stringify(data, null, 2);
+                    
+                    document.getElementById('sensores-activos').textContent = data.length;
+                    
+                    // Panel de sensores
+                    const panel = document.getElementById('panel-sensores');
+                    panel.innerHTML = '';
+                    
+                    if (data.length === 0) {
+                        panel.innerHTML = '<div class="text-center text-muted">No hay sensores configurados</div>';
+                    } else {
+                        data.forEach(sensor => {
+                            const div = document.createElement('div');
+                            div.className = 'mb-2 p-2 bg-light rounded';
+                            div.innerHTML = `
+                                <strong>${sensor.tipo || 'Sensor'}</strong><br>
+                                <span class="h5 text-primary">${sensor.valor || 'N/A'} ${sensor.unidad || ''}</span>
+                            `;
+                            panel.appendChild(div);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error cargando sensores:', error);
+                    document.getElementById('debug-sensores').textContent = 'Error: ' + error.message;
+                    document.getElementById('sensores-activos').textContent = 'Error';
+                });
+            
+            // Cargar estado Modbus
+            fetch('/api/estado')
+                .then(response => {
+                    console.log('Response estado:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Datos estado:', data);
+                    
+                    // Debug
+                    document.getElementById('debug-estado').textContent = JSON.stringify(data, null, 2);
+                    
+                    document.getElementById('modbus-estado').textContent = data.activo ? 'Activo' : 'Inactivo';
+                    
+                    // Tiempo activo (si está disponible)
+                    if (data.estadisticas && data.estadisticas.tiempo_operacion) {
+                        document.getElementById('tiempo-activo').textContent = data.estadisticas.tiempo_operacion;
+                    } else {
+                        document.getElementById('tiempo-activo').textContent = 'N/A';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error cargando estado:', error);
+                    document.getElementById('debug-estado').textContent = 'Error: ' + error.message;
+                    document.getElementById('modbus-estado').textContent = 'Error';
+                });
+        }
+
+        // Auto-refresh cada 5 segundos
+        setInterval(refreshData, 5000);
+
+        // Cargar datos inicial
+        refreshData();
+    </script>
+</body>
+</html>
