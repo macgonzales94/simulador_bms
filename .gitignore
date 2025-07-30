@@ -1,0 +1,354 @@
+# ============================================================================
+# .GITIGNORE - SISTEMA BMS DEMO
+# Archivos y directorios a ignorar en el control de versiones
+# ============================================================================
+
+# =============================================================================
+# ENTORNOS VIRTUALES DE PYTHON
+# =============================================================================
+entorno_bms/
+venv/
+env/
+ENV/
+.venv/
+.env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# =============================================================================
+# ARCHIVOS COMPILADOS DE PYTHON
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+
+# =============================================================================
+# ARCHIVOS DE CONFIGURACIÓN SENSIBLES
+# =============================================================================
+# Variables de entorno con datos sensibles
+configuracion.env
+.env
+.env.local
+.env.development
+.env.production
+
+# Archivos de configuración con contraseñas
+config_produccion.py
+secrets.json
+credenciales.txt
+
+# =============================================================================
+# BASE DE DATOS
+# =============================================================================
+# Archivos de base de datos SQLite
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Respaldos de base de datos
+backup_*.db
+*.bak
+*.backup
+
+# Directorio de base de datos completo (si se quiere ignorar)
+# base_datos/
+
+# =============================================================================
+# ARCHIVOS DE LOG
+# =============================================================================
+# Directorio completo de logs
+logs/
+*.log
+*.log.*
+*.out
+
+# Logs específicos
+sistema_bms.log*
+protocolo_*.log*
+errores.log*
+debug.log*
+
+# =============================================================================
+# ARCHIVOS TEMPORALES
+# =============================================================================
+# Directorio temporal
+temp/
+tmp/
+*.tmp
+*.temp
+*~
+
+# Archivos de respaldo
+*.bak
+*.swp
+*.swo
+*~
+
+# Archivos de bloqueo
+*.lock
+.lock
+
+# =============================================================================
+# ENTORNOS DE DESARROLLO (IDEs)
+# =============================================================================
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.atom/
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# =============================================================================
+# SISTEMA OPERATIVO
+# =============================================================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# =============================================================================
+# ARCHIVOS DE DOCUMENTACIÓN GENERADOS
+# =============================================================================
+# Documentación HTML generada
+docs/_build/
+docs/build/
+site/
+
+# Archivos de cobertura
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# =============================================================================
+# ARCHIVOS DE DISTRIBUCIÓN Y EMPAQUETADO
+# =============================================================================
+# Archivos de distribución
+*.tar.gz
+*.zip
+*.rar
+*.7z
+
+# Archivos de instalación
+installer/
+setup/
+deploy/
+
+# =============================================================================
+# ARCHIVOS DE DESARROLLO Y TESTING
+# =============================================================================
+# Pytest
+.pytest_cache/
+test-results/
+pytest.ini
+
+# Coverage
+.coverage
+htmlcov/
+
+# Tox
+.tox/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# =============================================================================
+# ARCHIVOS ESPECÍFICOS DEL PROYECTO BMS
+# =============================================================================
+# Datos de simulación
+datos_simulacion/
+datos_prueba/
+
+# Archivos de configuración específicos del entorno
+config_lab_*.py
+configuracion_local.env
+
+# Reportes generados
+reportes/
+informes/
+
+# Backups automáticos
+backups/
+*.backup
+
+# Archivos de importación/exportación
+import/
+export/
+*.csv
+*.xlsx
+*.json
+
+# Certificados y claves (¡NUNCA commitear!)
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+ssl/
+certificates/
+
+# =============================================================================
+# ARCHIVOS DE MONITOREO Y RENDIMIENTO
+# =============================================================================
+# Perfiles de rendimiento
+*.prof
+*.profile
+
+# Dumps de memoria
+*.dump
+*.dmp
+
+# Archivos de monitoreo
+monitoring/
+metrics/
+
+# =============================================================================
+# ARCHIVOS DE INTEGRACIÓN CONTINUA
+# =============================================================================
+# GitHub Actions (mantener, pero ignorar logs)
+# .github/
+.github/workflows/*.log
+
+# Jenkins
+jenkins/
+
+# Docker (si se usa en futuras versiones)
+docker-compose.override.yml
+.dockerignore
+
+# =============================================================================
+# ARCHIVOS DE TERCEROS
+# =============================================================================
+# Node.js (si se agrega frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Bower
+bower_components/
+
+# =============================================================================
+# ARCHIVOS DE CONFIGURACIÓN ESPECÍFICOS
+# =============================================================================
+# Configuraciones locales de desarrollo
+local_settings.py
+.local
+*_local.py
+
+# Archivos de override
+override/
+overrides/
+
+# =============================================================================
+# EXCLUSIONES ESPECÍFICAS (MANTENER ESTOS ARCHIVOS)
+# =============================================================================
+# NO ignorar estos archivos importantes
+!configuracion/configuracion_general.py
+!configuracion/configuracion_protocolos.py
+!configuracion/configuracion_base_datos.py
+!requirements.txt
+!README.md
+!.gitignore
+
+# NO ignorar ejemplos de configuración
+!configuracion.env.example
+!config.example.py
+
+# NO ignorar estructura de directorios
+!*/.gitkeep
+
+# =============================================================================
+# ARCHIVOS DE DESARROLLO FUTURO
+# =============================================================================
+# Para futuras integraciones
+mqtt_data/
+bacnet_data/
+snmp_data/
+
+# Para futura interfaz web
+static/uploaded/
+media/uploads/
+
+# Para futuras APIs
+api_keys.txt
+tokens/
+
+# =============================================================================
+# NOTAS IMPORTANTES
+# =============================================================================
+#
+# 1. Este .gitignore está diseñado específicamente para el proyecto BMS Demo
+# 2. Mantiene la seguridad ignorando archivos sensibles (configuraciones, logs)
+# 3. Permite el desarrollo colaborativo sin conflictos
+# 4. Se puede personalizar según necesidades específicas del entorno
+# 5. Siempre revisar antes de commitear archivos de configuración
+#
+# Para verificar qué archivos están siendo ignorados:
+# git status --ignored
+#
+# Para forzar agregar un archivo ignorado (solo si es necesario):
+# git add -f archivo_específico.ext
+#
+# =============================================================================
