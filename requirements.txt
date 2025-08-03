@@ -1,53 +1,146 @@
 # ============================================================================
-# REQUIREMENTS.TXT - SISTEMA BMS DEMO - MÓDULO 1
-# Dependencias para configuración base + Protocolo Modbus + Modelos
+# REQUIREMENTS.TXT - SISTEMA BMS DEMO V2 - SERVIDOR MODBUS TCP REAL
+# Dependencias actualizadas para servidor Modbus TCP real con pymodbus
 # ============================================================================
 
-# Framework Web (para futuros módulos)
+# Framework Web (para interfaz web)
 Flask==2.3.3
 Flask-CORS==4.0.0
 Flask-SQLAlchemy==3.0.5
 
-# Protocolos de Comunicación - MÓDULO 1 (Modbus)
+# ============================================================================
+# PROTOCOLOS DE COMUNICACIÓN - MÓDULO 1 ACTUALIZADO
+# ============================================================================
+
+# PyModbus - SERVIDOR TCP REAL (CRÍTICO)
+# Versión 3.4.1 con soporte completo para servidor TCP async/sync
 pymodbus==3.4.1
 
-# Protocolos adicionales (para futuros módulos)
+# Dependencias adicionales para PyModbus (si es necesario)
+# pyserial==3.5          # Para Modbus RTU (opcional)
+# twisted==22.10.0       # Para funcionalidad avanzada (opcional)
+
+# ============================================================================
+# PROTOCOLOS ADICIONALES (para futuros módulos)
+# ============================================================================
+
+# BACnet Protocol
 bacpypes==0.18.6
+
+# MQTT Protocol  
 paho-mqtt==1.6.1
+
+# SNMP Protocol
 pysnmp==4.4.12
+
+# HTTP/REST Requests
 requests==2.31.0
 
-# Base de Datos
-SQLAlchemy==2.0.20
-# sqlite3 está incluido en Python
+# ============================================================================
+# BASE DE DATOS
+# ============================================================================
 
-# Utilidades del Sistema
+# SQLAlchemy ORM
+SQLAlchemy==2.0.20
+
+# Base de datos adicionales (opcional)
+# postgresql: psycopg2-binary==2.9.7
+# mysql: PyMySQL==1.1.0
+
+# SQLite está incluido en Python por defecto
+
+# ============================================================================
+# UTILIDADES DEL SISTEMA
+# ============================================================================
+
+# Variables de entorno
 python-dotenv==1.0.0
+
+# Programación de tareas
 schedule==1.2.0
+
+# Logging con colores
 colorlog==6.7.0
+
+# Información del sistema
 psutil==5.9.5
 
-# Desarrollo y Pruebas
+# ============================================================================
+# DESARROLLO Y PRUEBAS
+# ============================================================================
+
+# Testing framework
 pytest==7.4.2
 pytest-cov==4.1.0
+
+# Code formatting
 black==23.7.0
+
+# Code linting
 flake8==6.0.0
 
-# Dependencias adicionales para funcionalidad completa
+# ============================================================================
+# DEPENDENCIAS ADICIONALES
+# ============================================================================
+
+# Serialización JSON mejorada
 dataclasses-json==0.5.14
+
+# Extensiones de tipos
 typing-extensions==4.7.1
+
+# Asyncio utilities (para pymodbus 3.x)
+asyncio-mqtt==0.13.0
+
+# ============================================================================
+# DEPENDENCIAS DE SISTEMA (OPCIONALES)
+# ============================================================================
+
+# Para monitoreo de red
+# netifaces==0.11.0
+
+# Para operaciones de tiempo avanzadas
+# python-dateutil==2.8.2
+
+# Para validación avanzada
+# pydantic==2.4.2
 
 # ============================================================================
 # NOTAS DE INSTALACIÓN
 # ============================================================================
 # 
-# Para instalar todas las dependencias:
-# pip install -r requirements.txt
-#
-# Para instalar solo las dependencias del Módulo 1:
+# INSTALACIÓN BÁSICA (solo lo esencial):
 # pip install pymodbus==3.4.1 python-dotenv==1.0.0 SQLAlchemy==2.0.20 colorlog==6.7.0 psutil==5.9.5
 #
-# Para desarrollo:
+# INSTALACIÓN COMPLETA:
+# pip install -r requirements.txt
+#
+# INSTALACIÓN PARA DESARROLLO:
+# pip install -r requirements.txt
 # pip install pytest==7.4.2 black==23.7.0 flake8==6.0.0
+#
+# VERIFICACIÓN DE PYMODBUS:
+# python -c "import pymodbus; print(f'PyModbus versión: {pymodbus.__version__}')"
+#
+# PRUEBA RÁPIDA DEL SERVIDOR TCP:
+# python protocolos/modbus/servidor_modbus_tcp_real.py
+#
+# ============================================================================
+# COMPATIBILIDAD
+# ============================================================================
+#
+# Python 3.10+ requerido
+# PyModbus 3.4.1 soporta:
+#   - Servidor TCP async (recomendado)
+#   - Servidor TCP sync (fallback)
+#   - Cliente TCP/RTU/UDP
+#   - Datastore personalizable
+#   - Callbacks para escrituras
+#
+# Probado en:
+#   - Windows 10/11
+#   - Ubuntu 20.04/22.04
+#   - Python 3.10.12
+#   - Python 3.11.x
 #
 # ============================================================================
